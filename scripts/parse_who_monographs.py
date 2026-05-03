@@ -272,8 +272,10 @@ def ingest_monographs(db_path: str, docs_dir: Path):
 
 
 if __name__ == '__main__':
-    db_path = '/home/walker/.hermes/projects/botanical_repertory/data/botanical.sqlite'
-    docs_dir = Path('/home/walker/.hermes/projects/botanical_repertory/docs/who_monographs')
+    # Use relative paths so the script works from any clone location
+    project_root = Path(__file__).parent.parent
+    db_path = str(project_root / 'data' / 'botanical.sqlite')
+    docs_dir = project_root / 'docs' / 'who_monographs'
     
     stats = ingest_monographs(db_path, docs_dir)
     print(f"\n✅ Ingestion complete!")

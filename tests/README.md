@@ -18,7 +18,7 @@ tests/
 
 ### Run all tests:
 ```bash
-cd ~/.hermes/projects/botanical_repertory
+cd /path/to/botanical-repertory
 python -m pytest tests/ -v
 ```
 

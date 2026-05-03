@@ -1,7 +1,7 @@
 # Botanical Repertory — Project Manifest
 
-**Location**: `~/.hermes/projects/botanical_repertory/`
-**Git**: Initialized (`main` branch)
+**Repository:** [github.com/drwjkirkpatrick-web/botanical-repertory](https://github.com/drwjkirkpatrick-web/botanical-repertory)
+**Git:** `main` branch
 
 ## What's In Here
 
@@ -33,7 +33,7 @@ A local-first botanical medicine repertory with vector search. Query by indicati
 ## How to Use
 
 ```bash
-cd ~/.hermes/projects/botanical_repertory
+cd /path/to/botanical-repertory
 
 # Check stats
 python cli.py stats
