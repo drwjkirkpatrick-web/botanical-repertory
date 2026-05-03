@@ -9,7 +9,7 @@ Maps **symptoms/indications → botanical remedies** (Latin binomials) with evid
 ### Key Features
 
 - **Local SQLite database** — No cloud dependency, full data ownership
-- **Vector + Lexical hybrid search** — Find indications by semantic meaning, not just keywords
+- **Vector + Lexical hybrid search** — Feature-hashing + random projection vectors plus BM25-style lexical matching
 - **Evidence-weighted scoring** — Clinical trials weighted higher than traditional use
 - **Safety integration** — Contraindications and drug interactions built-in
 - **Multiple source support** — WHO Monographs, EMA HMPC monographs (extensible)
@@ -138,8 +138,7 @@ The EMA parser is built and tested. When you're ready:
 ## Technical Details
 
 - **Backend**: SQLite 3 with FTS5 full-text search
-- **Vector index**: NumPy float16, 384-dim (all-MiniLM-L6-v2 embeddings)
-- **Embeddings**: SentenceTransformers `all-MiniLM-L6-v2`
+- **Vector index**: NumPy float16, 384-dim (feature hashing + random projection — no ML model downloads)
 - **Search**: Hybrid lexical (BM25-like) + cosine similarity
 - **Index size**: ~0.2 MB for 249 indications
 
