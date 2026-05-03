@@ -1,18 +1,14 @@
 """
 Ingestion Pipeline for Botanical Medicine Repertory
 
-Orchestrates data flow from multiple sources:
-- Airtable API
-- Local documents (Markdown, TXT)
+Orchestrates data flow from local documents (Markdown, TXT):
 - Batch processing with transaction safety
+- Extensible parser framework for additional monograph sources
 
 Usage:
     from ingestion.pipeline import IngestionPipeline
     
     pipeline = IngestionPipeline()
-    
-    # Ingest from Airtable
-    stats = pipeline.ingest_from_airtable()
     
     # Ingest from documents
     stats = pipeline.ingest_from_documents("docs/")
@@ -32,7 +28,6 @@ from src.models import (
 )
 
 # Import ingestion modules
-from .airtable_fetch import AirtableClient
 from .document_parser import DocumentParser
 from .heuristics_v1 import (
     LatinBinomialExtractor,
@@ -122,254 +117,6 @@ class IngestionPipeline:
         self.db.initialize_schema(str(schema_path))
         logger.info("Database initialized")
         return True
-    
-    # ========================================================================
-    # AIRTABLE INGESTION
-    # ========================================================================
-    
-    def ingest_from_airtable(
-        self,
-        max_records: Optional[int] = None,
-        batch_size: int = 100
-    ) -> IngestionStats:
-        """
-        Ingest botanical records from Airtable.
-        
-        Args:
-            max_records: Maximum records to fetch (None = all)
-            batch_size: Number of records to process per transaction batch
-        
-        Returns:
-            IngestionStats with results
-        """
-        stats = IngestionStats(source="airtable")
-        
-        try:
-            # Connect to Airtable
-            client = AirtableClient()
-            
-            # First, inspect schema to see available fields
-            logger.info("Inspecting Airtable schema...")
-            fields = client.inspect_fields()
-            field_names = [f['name'] for f in fields]
-            logger.info(f"Found fields: {field_names}")
-            
-            # Fetch records
-            logger.info(f"Fetching records (max: {max_records or 'unlimited'})...")
-            records = client.fetch_all_records(max_records=max_records)
-            
-            logger.info(f"Fetched {len(records)} records")
-            stats.records_processed = len(records)
-            
-            # Process in batches
-            for i in range(0, len(records), batch_size):
-                batch = records[i:i + batch_size]
-                logger.info(f"Processing batch {i//batch_size + 1}/{(len(records)-1)//batch_size + 1}")
-                
-                try:
-                    batch_stats = self._process_airtable_batch(batch)
-                    stats.botanicals_added += batch_stats['botanicals']
-                    stats.indications_added += batch_stats['indications']
-                    stats.edges_added += batch_stats['edges']
-                    stats.contraindications_added += batch_stats['contraindications']
-                except Exception as e:
-                    error_msg = f"Batch {i//batch_size} failed: {str(e)}"
-                    logger.error(error_msg)
-                    stats.errors.append(error_msg)
-            
-            logger.info("Airtable ingestion complete")
-            
-        except Exception as e:
-            error_msg = f"Airtable ingestion failed: {str(e)}"
-            logger.error(error_msg)
-            stats.errors.append(error_msg)
-        
-        finally:
-            stats.end_time = datetime.now()
-            self._update_meta_after_ingestion(stats)
-        
-        return stats
-    
-    def _process_airtable_batch(self, records: List[Dict]) -> Dict[str, int]:
-        """Process a batch of Airtable records."""
-        stats = {'botanicals': 0, 'indications': 0, 'edges': 0, 'contraindications': 0}
-        
-        with self.db.transaction() as conn:
-            for record in records:
-                fields = record.get('fields', {})
-                
-                # Extract botanical
-                botanical = self._extract_botanical_from_airtable(fields)
-                if not botanical:
-                    continue
-                
-                botanical_id = self.db.insert_botanical(botanical)
-                if botanical_id:
-                    stats['botanicals'] += 1
-                
-                # Extract indications
-                indications = self._extract_indications_from_airtable(fields)
-                for ind_data in indications:
-                    indication = Indication(
-                        indication_text=ind_data['text'],
-                        normalized_text=ind_data['normalized'],
-                        category=ind_data.get('category'),
-                    )
-                    indication_id = self.db.insert_indication(indication)
-                    
-                    if indication_id:
-                        stats['indications'] += 1
-                    
-                    # Create edge
-                    edge = BotanicalIndicationLink(
-                        indication_id=indication_id,
-                        botanical_id=botanical_id,
-                        weight=ind_data.get('weight', 1.0),
-                        evidence_level=ind_data.get('evidence_level', 'traditional'),
-                        source_ref='Airtable'
-                    )
-                    self.db.insert_edge(edge)
-                    stats['edges'] += 1
-                
-                # Extract contraindications
-                contras = self._extract_contraindications_from_airtable(fields)
-                for contra_data in contras:
-                    contra = Contraindication(
-                        botanical_id=botanical_id,
-                        contraindication=contra_data['description'],
-                        severity=contra_data.get('severity', 'moderate'),
-                        population=contra_data.get('population', 'all')
-                    )
-                    self.db.insert_contraindication(contra)
-                    stats['contraindications'] += 1
-        
-        return stats
-    
-    def _extract_botanical_from_airtable(self, fields: Dict) -> Optional[Botanical]:
-        """Extract botanical data from Airtable fields."""
-        # Try common field names for Latin binomial
-        latin_field = None
-        for field_name in ['Latin Binomial', 'Scientific Name', 'Latin Name', 'Binomial']:
-            if field_name in fields:
-                latin_field = fields[field_name]
-                break
-        
-        if not latin_field:
-            return None
-        
-        # Parse binomial
-        parts = latin_field.split()
-        if len(parts) < 2:
-            return None
-        
-        # Get common names (might be list or string)
-        common_names = []
-        for field_name in ['Common Names', 'Common Name', 'Vernacular Names']:
-            if field_name in fields:
-                value = fields[field_name]
-                if isinstance(value, list):
-                    common_names = value
-                elif isinstance(value, str):
-                    common_names = [n.strip() for n in value.split(',')]
-                break
-        
-        # Get family
-        family = fields.get('Family', '')
-        
-        # Get parts used
-        parts_used = []
-        for field_name in ['Parts Used', 'Plant Part', 'Part Used']:
-            if field_name in fields:
-                value = fields[field_name]
-                if isinstance(value, list):
-                    parts_used = value
-                elif isinstance(value, str):
-                    parts_used = [p.strip() for p in value.split(',')]
-                break
-        
-        return Botanical(
-            latin_binomial=latin_field,
-            common_names=common_names,
-            family=family,
-            genus=parts[0],
-            species=parts[1] if len(parts) > 1 else '',
-            parts_used=parts_used
-        )
-    
-    def _extract_indications_from_airtable(self, fields: Dict) -> List[Dict]:
-        """Extract indications from Airtable fields."""
-        indications = []
-        
-        # Try common field names
-        for field_name in ['Indications', 'Uses', 'Actions', 'Therapeutic Uses']:
-            if field_name not in fields:
-                continue
-            
-            value = fields[field_name]
-            items = []
-            
-            if isinstance(value, list):
-                items = value
-            elif isinstance(value, str):
-                # Split on newlines or semicolons
-                items = [i.strip() for i in re.split(r'[\n;]', value) if i.strip()]
-            
-            for item in items:
-                normalized = self.indication_extractor.normalize(item)
-                category = self.indication_extractor.categorize(normalized)
-                
-                # Detect evidence level
-                evidence = 'traditional'
-                for field_name_ev in ['Evidence', 'Evidence Level', 'Research']:
-                    if field_name_ev in fields:
-                        evidence_text = str(fields[field_name_ev])
-                        detected, _ = self.evidence_detector.detect(evidence_text)
-                        evidence = detected
-                        break
-                
-                indications.append({
-                    'text': item,
-                    'normalized': normalized,
-                    'category': category,
-                    'evidence_level': evidence,
-                    'weight': 1.0
-                })
-        
-        return indications
-    
-    def _extract_contraindications_from_airtable(self, fields: Dict) -> List[Dict]:
-        """Extract contraindications from Airtable fields."""
-        contras = []
-        
-        for field_name in ['Contraindications', 'Precautions', 'Safety', 'Warnings']:
-            if field_name not in fields:
-                continue
-            
-            value = fields[field_name]
-            items = []
-            
-            if isinstance(value, list):
-                items = value
-            elif isinstance(value, str):
-                items = [i.strip() for i in re.split(r'[\n;]', value) if i.strip()]
-            
-            for item in items:
-                severity = self.safety_detector._detect_severity(item)
-                
-                # Detect population
-                population = 'all'
-                if 'pregnancy' in item.lower() or 'pregnant' in item.lower():
-                    population = 'pregnancy'
-                elif 'child' in item.lower() or 'pediatric' in item.lower():
-                    population = 'children'
-                
-                contras.append({
-                    'description': item,
-                    'severity': severity,
-                    'population': population
-                })
-        
-        return contras
     
     # ========================================================================
     # DOCUMENT INGESTION
@@ -523,11 +270,6 @@ class IngestionPipeline:
     def get_stats(self) -> Dict[str, Any]:
         """Get current database statistics."""
         return self.db.get_stats()
-    
-    def inspect_airtable_schema(self) -> List[Dict]:
-        """Inspect Airtable schema without ingesting."""
-        client = AirtableClient()
-        return client.inspect_fields()
 
 
 def main():
@@ -536,10 +278,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Botanical ingestion pipeline")
     parser.add_argument("--init", action="store_true", help="Initialize database")
-    parser.add_argument("--airtable", action="store_true", help="Ingest from Airtable")
     parser.add_argument("--docs", metavar="DIR", help="Ingest from documents directory")
-    parser.add_argument("--max-records", type=int, help="Max Airtable records")
-    parser.add_argument("--inspect", action="store_true", help="Inspect Airtable schema")
     parser.add_argument("--stats", action="store_true", help="Show database stats")
     parser.add_argument("--output", "-o", help="Save stats to JSON file")
     
@@ -556,30 +295,6 @@ def main():
     if args.init:
         pipeline.initialize_database()
         print("✅ Database initialized")
-    
-    elif args.inspect:
-        print("\n=== Airtable Schema ===")
-        fields = pipeline.inspect_airtable_schema()
-        for f in fields:
-            print(f"  {f['name']} ({f['type']})")
-        print()
-    
-    elif args.airtable:
-        print("\n⏳ Ingesting from Airtable...")
-        stats = pipeline.ingest_from_airtable(max_records=args.max_records)
-        print(f"\n✅ Ingestion complete!")
-        print(f"   Duration: {stats.duration_seconds:.1f}s")
-        print(f"   Records processed: {stats.records_processed}")
-        print(f"   Botanicals added: {stats.botanicals_added}")
-        print(f"   Indications added: {stats.indications_added}")
-        print(f"   Edges added: {stats.edges_added}")
-        if stats.errors:
-            print(f"   ⚠️  Errors: {len(stats.errors)}")
-        
-        if args.output:
-            with open(args.output, 'w') as f:
-                json.dump(stats.to_dict(), f, indent=2)
-            print(f"\n   Stats saved to {args.output}")
     
     elif args.docs:
         print(f"\n⏳ Ingesting from {args.docs}...")

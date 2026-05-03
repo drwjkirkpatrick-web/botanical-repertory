@@ -45,8 +45,13 @@ data/*.json
 !config/schema.sql
 !config/config.json
 
-# Docs source PDFs (large)
+# Docs source PDFs (large and copyrighted)
 docs/who_monographs/*.pdf
 
 # Logs
 *.log
+
+# Patient case files (never commit clinical data)
+*case_analysis*
+*patient*
+*Case_Analysis*

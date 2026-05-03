@@ -1,10 +1,10 @@
 # Botanical Medicine Repertory
 
-A local, vector-searchable botanical medicine database for clinical use. Inspired by homeopathic repertory systems, adapted for botanical materia medica.
+A local, vector-searchable botanical medicine database for clinical and educational use. Inspired by homeopathic repertory systems, adapted for botanical materia medica.
 
 ## Overview
 
-Maps **symptoms/indications → botanical remedies** (Latin binomials) with evidence levels, safety profiles, and contraindications. Runs entirely offline after initial setup.
+Maps **indications → botanical remedies** (Latin binomials) with evidence levels, safety profiles, and contraindications. Runs entirely offline after initial setup.
 
 ### Key Features
 
@@ -12,14 +12,13 @@ Maps **symptoms/indications → botanical remedies** (Latin binomials) with evid
 - **Vector + Lexical hybrid search** — Feature-hashing + random projection vectors plus BM25-style lexical matching
 - **Evidence-weighted scoring** — Clinical trials weighted higher than traditional use
 - **Safety integration** — Contraindications and drug interactions built-in
-- **Multiple source support** — WHO Monographs, EMA HMPC monographs (extensible)
+- **Extensible source system** — Parser framework for ingesting monograph collections
 
 ## Current Data Status
 
 | Source | Botanicals | Indications | Edges | Status |
 |--------|-----------|-------------|-------|--------|
 | WHO Monographs Vol 1-4 | 116 | 249 | 541 | ✅ Ingested |
-| EMA HMPC Monographs | 1 | 2 | 2 | 🟡 Proof of concept (Valeriana officinalis) |
 
 ## Project Structure
 
@@ -32,14 +31,14 @@ botanical_repertory/
 ├── data/                       # SQLite DB and vector indexes (gitignored)
 ├── docs/
 │   ├── sample_chamomile.md     # Sample botanical monograph
-│   └── who_monographs/         # WHO source PDFs + extracted text
+│   └── who_monographs/         # WHO source text extracts
 ├── ingestion/                  # Data import pipeline
 │   ├── pipeline.py
 │   ├── document_parser.py
 │   └── heuristics_v1.py
 ├── scripts/                    # One-off ingestion scripts
-│   ├── parse_who_monographs.py    # WHO Vol 1-4 → SQLite
-│   └── parse_ema_monographs.py    # EMA PDF → SQLite
+│   ├── create_sample_data.py   # Generate test data
+│   └── parse_who_monographs.py # WHO Vol 1-4 → SQLite
 ├── search/                     # Search implementations
 │   ├── hybrid_search.py
 │   ├── lexical_search.py
@@ -73,16 +72,10 @@ python cli.py search "cough and bronchitis"
 python cli.py repertorize "anxiety, insomnia"
 ```
 
-### 3. Ingest New Monographs
+### 3. Ingest WHO Monographs
 
-**WHO Monographs** (already done — one-time bulk ingest):
 ```bash
 python scripts/parse_who_monographs.py data/botanical.sqlite
-```
-
-**EMA HMPC Monographs** (run per-PDF as you acquire them):
-```bash
-python scripts/parse_ema_monographs.py /path/to/ema_monograph.pdf data/botanical.sqlite
 ```
 
 ### 4. Rebuild Vector Index (after adding new indications)
@@ -121,19 +114,11 @@ builder.build_from_indications(dim=384)
 - **Severity levels** — mild, moderate, severe, absolute
 - **Mechanism notes** — Brief explanation of interaction/contraindication
 
-## Adding EMA Monographs Later
+## Data Sources
 
-The EMA parser is built and tested. When you're ready:
+- **WHO Monographs on Selected Medicinal Plants** Vol 1-4 (public domain, from WHO IRIS)
 
-1. Download EMA HMPC monograph PDFs from [ema.europa.eu](https://www.ema.europa.eu)
-2. Run the parser on each PDF:
-   ```bash
-   python scripts/parse_ema_monographs.py ./Hypericum_perforatum.pdf data/botanical.sqlite
-   ```
-3. Rebuild the vector index:
-   ```bash
-   python -c "from search.vector_index import VectorIndexBuilder; VectorIndexBuilder().build_from_indications(dim=384)"
-   ```
+The ingestion pipeline is designed to be extensible. Additional monograph sources can be added by implementing a parser module following the `DocumentParser` interface in `ingestion/document_parser.py`.
 
 ## Technical Details
 

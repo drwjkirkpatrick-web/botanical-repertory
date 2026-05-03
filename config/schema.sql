@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS docs (
     filename TEXT UNIQUE NOT NULL,
     filepath TEXT,
     content TEXT,
-    source TEXT,  -- 'airtable', 'file_import', 'manual_entry'
+    source TEXT,  -- 'who_monograph', 'file_import', 'manual_entry'
     doc_type TEXT,  -- 'monograph', 'clinical_guide', 'research_paper', 'textbook'
     author TEXT,
     year INTEGER,

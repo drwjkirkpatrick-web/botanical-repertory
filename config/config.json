@@ -4,13 +4,6 @@
     "version": "1.0.0",
     "description": "Local vector-searchable botanical medicine repertory"
   },
-  "airtable": {
-    "base_id": "YOUR_AIRTABLE_BASE_ID",
-    "table_id": "YOUR_AIRTABLE_TABLE_ID",
-    "api_key_env": "AIRTABLE_API_KEY",
-    "rate_limit_per_second": 5,
-    "_note": "Optional legacy integration — project now uses WHO/EMA monographs directly"
-  },
   "database": {
     "path": "data/botanical.sqlite",
     "schema_file": "config/schema.sql",

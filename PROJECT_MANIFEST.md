@@ -1,11 +1,11 @@
 # Botanical Repertory — Project Manifest
 
 **Location**: `~/.hermes/projects/botanical_repertory/`
-**Git**: Initialized (`master` branch, commit `9328c5e`)
+**Git**: Initialized (`main` branch)
 
 ## What's In Here
 
-A local-first botanical medicine repertory with vector search. Query by symptom/indication and get ranked botanical suggestions with safety data.
+A local-first botanical medicine repertory with vector search. Query by indication and get ranked botanical suggestions with safety data.
 
 ## Current State
 
@@ -14,7 +14,6 @@ A local-first botanical medicine repertory with vector search. Query by symptom/
 | SQLite database | 116 botanicals, 249 indications, 541 edges |
 | Vector index | 384-dim float16, built |
 | WHO Monographs | Vol 1-4 fully ingested |
-| EMA HMPC parser | Built and tested, awaiting more PDFs |
 | CLI | `search`, `repertorize`, `stats` working |
 
 ## Key Files
@@ -27,7 +26,7 @@ A local-first botanical medicine repertory with vector search. Query by symptom/
 | `src/models.py` | Dataclasses: Botanical, Indication, etc. |
 | `search/vector_index.py` | Build/query vector index |
 | `scripts/parse_who_monographs.py` | One-time WHO bulk ingest |
-| `scripts/parse_ema_monographs.py` | Per-PDF EMA ingest |
+| `scripts/create_sample_data.py` | Generate sample dataset for testing |
 | `data/botanical.sqlite` | Main database (gitignored) |
 | `data/botanical_vector_index.npz` | Vector index (gitignored) |
 
@@ -42,25 +41,17 @@ python cli.py stats
 # Search
 python cli.py search "cough and bronchitis"
 
-# Repertorize multiple symptoms
+# Repertorize multiple indications
 python cli.py repertorize "anxiety, insomnia"
 ```
-
-## Adding EMA Monographs Later
-
-```bash
-python scripts/parse_ema_monographs.py /path/to/ema_monograph.pdf data/botanical.sqlite
-```
-
-Then rebuild the vector index if you want new indications searchable by vector similarity.
 
 ## Data Sources
 
 - **WHO Monographs on Selected Medicinal Plants** Vol 1-4 (public domain, from WHO IRIS)
-- **EMA HMPC European Union Herbal Monographs** (public, from ema.europa.eu)
+
+The ingestion framework in `ingestion/` is designed to be extensible for additional monograph sources.
 
 ## Notes
 
-- The EMA parser uses `pdfplumber` to handle two-column table layouts
-- Vector embeddings use `sentence-transformers/all-MiniLM-L6-v2`
+- Vector embeddings use feature hashing + random projection (no ML model downloads required)
 - All data stays local — no API calls after initial setup

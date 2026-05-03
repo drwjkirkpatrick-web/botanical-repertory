@@ -97,6 +97,6 @@ def test_slow_operation():
 
 ## Continuous Integration
 
-Tests are designed to run in CI environments. Integration tests that require
-external resources (Airtable API) are marked and skipped automatically when
+Tests are designed to run in CI environments. Tests that require
+external resources are marked and skipped automatically when
 credentials are not available.

@@ -7,7 +7,7 @@ Usage:
 
 Commands:
     init              Initialize database
-    ingest            Ingest data from Airtable or documents
+    ingest            Ingest data from documents
     index             Build search indexes
     search            Search indications
     repertorize       Repertorize symptoms
@@ -47,10 +47,7 @@ def cmd_ingest(args):
     
     pipeline = IngestionPipeline()
     
-    if args.source == "airtable":
-        print("⏳ Ingesting from Airtable...")
-        stats = pipeline.ingest_from_airtable(max_records=args.max_records)
-    elif args.source == "documents":
+    if args.source == "documents":
         if not args.path:
             print("❌ Error: --path required for document ingestion")
             return 1
@@ -264,7 +261,7 @@ def main():
         epilog="""
 Examples:
   %(prog)s init
-  %(prog)s ingest airtable --max-records 100
+  %(prog)s ingest documents --path docs/
   %(prog)s index --type all
   %(prog)s search "anxiety" --mode hybrid
   %(prog)s repertorize anxiety insomnia --top 10 --export results.json
@@ -280,11 +277,9 @@ Examples:
     
     # ingest command
     ingest_parser = subparsers.add_parser('ingest', help='Ingest data')
-    ingest_parser.add_argument('source', choices=['airtable', 'documents'],
+    ingest_parser.add_argument('source', choices=['documents'],
                               help='Data source')
     ingest_parser.add_argument('--path', help='Path for document ingestion')
-    ingest_parser.add_argument('--max-records', type=int,
-                              help='Max records for Airtable')
     ingest_parser.add_argument('-o', '--output', help='Save stats to file')
     
     # index command
