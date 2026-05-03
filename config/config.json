@@ -1,0 +1,50 @@
+{
+  "project": {
+    "name": "Botanical Medicine Repertory",
+    "version": "1.0.0",
+    "description": "Local vector-searchable botanical medicine repertory"
+  },
+  "airtable": {
+    "base_id": "appGMlaqtjUqKFR3Z",
+    "table_id": "tbl2wdNWq6vJDJDKe",
+    "api_key_env": "AIRTABLE_API_KEY",
+    "rate_limit_per_second": 5
+  },
+  "database": {
+    "path": "data/botanical.sqlite",
+    "schema_file": "config/schema.sql",
+    "backup_on_migrate": true
+  },
+  "vector_search": {
+    "enabled": true,
+    "provider": "random_projection",
+    "dimensions": 384,
+    "dtype": "float16",
+    "index_path": "data/botanical_vector_index.npz",
+    "meta_path": "data/botanical_vector_meta.json",
+    "random_seed": 42
+  },
+  "ingestion": {
+    "docs_path": "docs",
+    "batch_size": 100,
+    "allowed_extensions": [".md", ".txt"],
+    "chunk_size": 500,
+    "chunk_overlap": 100
+  },
+  "search": {
+    "default_mode": "hybrid",
+    "lexical_weight": 0.4,
+    "vector_weight": 0.6,
+    "rrf_k": 60,
+    "max_results": 50
+  },
+  "evidence_levels": {
+    "systematic_review": 3.0,
+    "clinical_trial": 2.5,
+    "clinical_observation": 2.0,
+    "traditional": 1.0,
+    "in_vitro": 0.8,
+    "ethnobotanical": 0.7,
+    "theoretical": 0.5
+  }
+}
